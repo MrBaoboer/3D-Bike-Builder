@@ -21,6 +21,9 @@ const TAU = Math.PI * 2;
 const WRONG_LIMIT = 2 * TAU;
 const REBOUND = Math.PI;
 
+/** 拧到停住那一刻，手上剩多少「效率」—— 越往里越涩，最后一圈要多摸一倍的路 */
+const GRIND = 0.5;
+
 /**
  * |视线·螺栓轴| 低于这个值就改用切向位移读角度。
  * 螺栓轴几乎躺在屏幕平面里时，拖拽平面与视线接近平行，射线与它的交点会跑到几十米外，
@@ -42,6 +45,15 @@ const wrap = (d) => d - TAU * Math.round(d / TAU);
 const ringR = (f) => 0.0022 * (Number(String(f.spec || 'M5').match(/M(\d+)/)?.[1]) || 5);
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+/**
+ * 往错方向拧的阻力系数：牙咬得越死越费手，到停住那一刻手上的角度只剩一半。
+ * 这就是「发涩」本身 —— 没有它，两圈跟正常拧一样轻快，停住只像程序卡了一下。
+ * 只在继续往错方向拧时生效：往回退是在松开，松开不该费劲。
+ */
+const grind = (progress, step) => (progress < 0 && step < 0
+  ? 1 - (1 - GRIND) * clamp01(-progress / WRONG_LIMIT)
+  : 1);
 
 export class Screw {
   /** @param {{stage:any, bom:any, bolts:any, hud:any, sfx:any, state:any, fx?:any}} ctx */
@@ -239,9 +251,16 @@ export class Screw {
 
   // ══ 一颗的状态 → 画面 ═══════════════════════════════════════════════
 
+  /**
+   * 旋转认全程（负角照转），轴向只认拧进去的那一段 —— 「转得动，可一丝也进不去」。
+   *
+   * 两个都按夹住的 seat 走过：那样往错方向拧的两圈里画面一动不动，
+   * 扳手纹丝不动就是「拧不动」，没人会转到第二圈 ——
+   * 后面的停住、回退、解释一句也就永远到不了。反牙那一课全押在这一行上。
+   */
   _place(b) {
     const seat = Math.max(0, Math.min(b.progress, b.feedAngle));
-    const rot = new THREE.Quaternion().setFromAxisAngle(b.axis, b.sense * seat);
+    const rot = new THREE.Quaternion().setFromAxisAngle(b.axis, b.sense * b.progress);
     b.obj.quaternion.copy(b.rest).premultiply(rot);
     b.obj.position.copy(b.head).addScaledVector(b.axis, (seat / b.feedAngle - 1) * b.feed);
     if (this.tool && this.bolt === b) {
@@ -270,11 +289,12 @@ export class Screw {
     b.progress = Math.max(-WRONG_LIMIT, Math.min(next, b.feedAngle));
     this._place(b);
 
-    // 每半圈过一次牙就响一记；往错方向拧的那一路压低音高，越拧越涩
+    // 每半圈过一次牙就响一记；往错方向拧的那一路压低音高，越拧越闷、越响、越拖
     if (Math.floor(prev / Math.PI) !== Math.floor(b.progress / Math.PI)) {
       const depth = clamp01(b.progress / b.feedAngle);
+      const bind = clamp01(-b.progress / WRONG_LIMIT);
       this.ctx.sfx.play('THREAD_TURN', b.progress < 0
-        ? { depth: 1, pitch: -5, gain: 1.2 }
+        ? { depth: 1, pitch: -2 - 5 * bind, gain: 1 + 0.5 * bind, dur: 0.34 + 0.2 * bind }
         : { depth, pitch: depth * 3 });
     }
     this._report(b);
@@ -303,7 +323,12 @@ export class Screw {
     this.active = null;              // 手指还按着 —— 轨道控制留到 onUp 再交还
     this.ctx.sfx.play('THREAD_TURN', { depth: 1, pitch: -6, gain: 1.3, dur: 0.5 });
     this.ctx.sfx.play('WRONG', { delay: 0.06 });
-    this.ctx.state.wrongThread = this.ctx.state.wrongThread + 1;
+    /*
+     * 只有左牙那一颗记这一笔：右牙往这个方向转就是在拧松，顶住两圈是「退不下去了」，
+     * 不是拧错了牙。不分牙向地记，把前桶轴倒转两圈也会让结尾自检报一句
+     * 「左脚踏往拧松的方向转过 1 次」—— 说的是一件他根本没碰过的事。
+     */
+    if (b.f.thread === 'left') this.ctx.state.wrongThread = this.ctx.state.wrongThread + 1;
     s.fails += 1;
 
     const from = b.progress;
@@ -488,8 +513,9 @@ export class Screw {
       a.px = p;
     }
 
-    a.gained += b.sense * d;
-    this._turn(b.progress + b.sense * d);
+    const step = b.sense * d * grind(b.progress, b.sense * d);
+    a.gained += step;
+    this._turn(b.progress + step);
   }
 
   onUp(e) {

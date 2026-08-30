@@ -83,6 +83,15 @@ async function run(viewport, label, port) {
   const guide = await page.$('.sheet .btn-primary');
   if (guide) { await guide.click(); await page.waitForTimeout(tmo(400)); }
 
+  // 从入口截下每一句 toast。`.toast` 是一枚常驻元素，读 DOM 只看得到最后一句，
+  // 且两秒多就自己藏起来 —— 断言「说没说那句话」得有一份账
+  await page.evaluate(() => {
+    const h = window.__ctx.hud;
+    window.__toasts = [];
+    const f = h.toast.bind(h);
+    h.toast = (t, o) => { window.__toasts.push(t); return f(t, o); };
+  });
+
   const total = await page.evaluate(() => window.__engine.steps.length);
   check(`${label}-STEPS`, '步骤表非空', total > 0, `${total} 步`);
 
@@ -170,6 +179,160 @@ async function run(viewport, label, port) {
     const r = await screwIn(step, ids);
     check(`${label}-拧-${step}`, `旋入原语：${name}`, r.ok, r.err || JSON.stringify(r.got || {}));
   }
+
+  // ── 反牙那一课真的走得通 ──
+  // 只有这一条必须真的拖鼠标：autoRun 只往拧紧方向走，负角那半边一步也不踩。
+  // 三样缺一课就白上 ——
+  //   拧错的那两圈画面真的在转（一动不动就是「拧不动」，没人转得到第二圈）、
+  //   停在两圈整、回退半圈之后步骤脚本收到 onWrongWay。
+  const wrongWay = await (async () => {
+    // 上面那一遍已经把这颗自动拧上了 —— 不归零，重进这一步它就摆着不让再拧
+    await page.evaluate(() => window.__ctx.hud.onRestart());
+    await page.waitForTimeout(tmo(400));
+    await page.evaluate(() => window.__engine.goToStep('H3'));
+    await settled(page).catch(() => {});
+    // 极角增加的方向在屏幕上是顺是逆，随机位而定 —— 按投影现算，不写死转向
+    const aim = await page.evaluate(() => {
+      const s = window.__ctx.screw, b = s.bolt;
+      window.__wrong = null;
+      s.session.onWrongWay = ((f) => (id) => { window.__wrong = id; f?.(id); })(s.session.onWrongWay);
+      const o = s._screen(b.obj.position);
+      const at = (v) => s._screen(b.obj.position.clone().addScaledVector(v, 0.02));
+      const u = at(b.u0), v = at(b.v0);
+      // 屏幕 y 朝下：叉积为正表示「极角增加」在屏幕上走的是顺时针
+      const cw = (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x) > 0;
+      // 拧紧 = sense·d 为正，所以左牙要的是 d 变大那一头
+      return { x: o.x, y: o.y, sign: (b.sense < 0 ? 1 : -1) * (cw ? 1 : -1) };
+    });
+    const R = 110, STEP = 32;
+    const read = () => page.evaluate(() => {
+      const s = window.__ctx.screw, q = s.tool.quaternion;
+      return {
+        p: s.bolt.progress,
+        deg: 2 * Math.acos(Math.min(1, Math.abs(q.w))) * (180 / Math.PI),
+      };
+    });
+    await page.mouse.move(aim.x + 40, aim.y);
+    await page.mouse.down();
+    await page.mouse.move(aim.x + R, aim.y);
+    const seen = [];
+    // 带涩之后手要多摸一截；给到五圈，转不到就是涩过头了
+    for (let i = 1; i <= STEP * 5; i++) {
+      const a = aim.sign * (i / STEP) * Math.PI * 2;
+      await page.mouse.move(aim.x + R * Math.cos(a), aim.y + R * Math.sin(a));
+      if (i % (STEP / 4) === 0) seen.push({ hand: i / STEP, ...await read() });
+      if (await page.evaluate(() => window.__wrong !== null)) break;
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(tmo(900));
+    const end = await read();
+    return {
+      seen,
+      end: end.p,
+      told: await page.evaluate(() => window.__wrong),
+      count: await page.evaluate(() => window.__ctx.state.wrongThread),
+    };
+  })();
+  const TAU = Math.PI * 2;
+  const early = wrongWay.seen.find((s) => s.hand <= 0.5 && s.deg > 20);   // 半圈之内就看得出在转
+  const floor = Math.min(...wrongWay.seen.map((s) => s.p));
+  check(`${label}-反牙`, '左脚踏往正牙方向拧：转得动、拧满两圈停住、回退半圈再说明白',
+    !!early && Math.abs(floor + 2 * TAU) < 0.2
+      && Math.abs(wrongWay.end - (Math.PI - 2 * TAU)) < 0.2
+      && wrongWay.told === 'pedal-left-spindle' && wrongWay.count === 1,
+    `半圈内转过 ${early ? early.deg.toFixed(0) : 0}° · 停在 ${(-floor / TAU).toFixed(2)} 圈`
+      + ` · 回退到 ${(-wrongWay.end / TAU).toFixed(2)} 圈 · onWrongWay ${wrongWay.told ?? '没收到'}`);
+
+  // ── 推歪：错误方向要真的顶得住、弹得回 ──
+  // 件停在预备位时侧着推，是这条路最常见的走法。少了「给」的那一点点，
+  // 回弹是从零弹到零 —— 断言只看 toast 会全绿，而画面上什么也没发生。
+  const askew = await (async () => {
+    await page.evaluate(() => window.__engine.goToStep('B2'));
+    await settled(page).catch(() => {});
+    await page.evaluate(() => { window.__toasts.length = 0; });
+    const aim = await page.evaluate(() => {
+      const c = window.__ctx, sl = c.slide, st = c.stage;
+      const id = [...sl.session.pending][0];
+      const rig = sl.session.items.get(id);
+      const V = rig.dir.constructor;
+      const cam = st.camera.getWorldDirection(new V());
+      // 拖拽平面里垂直于装配轴的那个方向 —— 侧着顶就是往这儿使劲
+      const n = cam.clone().addScaledVector(rig.dir, -cam.dot(rig.dir)).normalize();
+      const perp = new V().crossVectors(n, rig.dir).normalize();
+      const r = st.canvas.getBoundingClientRect();
+      const at = (v) => { const p = v.clone().project(st.camera); return { x: (p.x * 0.5 + 0.5) * r.width, y: (0.5 - p.y * 0.5) * r.height }; };
+      const now = rig.center.clone().addScaledVector(rig.dir, -rig.gap);
+      const a = at(now), z = at(now.clone().addScaledVector(perp, rig.gap));
+      return { id, gap: rig.gap, x: a.x, y: a.y, dx: z.x - a.x, dy: z.y - a.y };
+    });
+    // 件此刻偏离「纯轴向那条线」多少毫米
+    const off = () => page.evaluate((id) => {
+      const rig = window.__ctx.slide._rigs.get(id);
+      const v = new (rig.dir.constructor)();
+      let worst = 0;
+      for (const n of rig.nodes) {
+        const want = n.home.clone().addScaledVector(n.step, (rig.u - 1) * rig.gap);
+        worst = Math.max(worst, v.copy(n.obj.position).sub(want).length() * 1000);
+      }
+      return worst;
+    }, aim.id);
+    await page.mouse.move(aim.x, aim.y);
+    await page.mouse.down();
+    let peak = 0;
+    for (let k = 1; k <= 16; k++) {
+      await page.mouse.move(aim.x + aim.dx * 1.2 * k / 16, aim.y + aim.dy * 1.2 * k / 16);
+      peak = Math.max(peak, await off());
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(tmo(900));
+    return { peak, rest: await off(), cap: aim.gap * 80, said: await page.evaluate(() => window.__toasts.at(-1) ?? null) };
+  })();
+  check(`${label}-推歪`, '侧着推顶得住：件歪出去一点点就到头，松手摆正并说明为什么',
+    askew.peak > askew.cap * 0.3 && askew.peak <= askew.cap * 1.05
+      && askew.rest < 0.01 && !!askew.said,
+    `顶歪峰值 ${askew.peak.toFixed(1)}mm（上限 ${askew.cap.toFixed(1)}mm）`
+      + ` · 收尾偏离 ${askew.rest.toFixed(3)}mm · 「${askew.said ?? '什么也没说'}」`);
+
+  // ── 右牙倒转两圈：顶得住，但不记成反牙 ──
+  // wrongThread 只该记左脚踏那一颗。不分牙向地记，把前桶轴倒转两圈，
+  // 结尾自检就会报一句「左脚踏往拧松的方向转过 1 次」—— 一件他没碰过的事。
+  const loosen = await (async () => {
+    await page.evaluate(() => window.__ctx.hud.onRestart());
+    await page.waitForTimeout(tmo(400));
+    await page.evaluate(() => window.__engine.goToStep('F3'));
+    await settled(page).catch(() => {});
+    const aim = await page.evaluate(() => {
+      const c = window.__ctx, sc = c.screw, st = c.stage;
+      const bo = sc.bolt;
+      const r = st.canvas.getBoundingClientRect();
+      const at = (v) => { const p = v.clone().project(st.camera); return { x: (p.x * 0.5 + 0.5) * r.width, y: (0.5 - p.y * 0.5) * r.height }; };
+      const o = at(bo.obj.position);
+      const u = at(bo.obj.position.clone().addScaledVector(bo.u0, 0.01));
+      const v = at(bo.obj.position.clone().addScaledVector(bo.v0, 0.01));
+      const cw = (u.x - o.x) * (v.y - o.y) - (u.y - o.y) * (v.x - o.x) > 0;
+      // 拧松 = sense·d 为负
+      return { x: o.x, y: o.y, thread: bo.f.thread, sign: (bo.sense < 0 ? 1 : -1) * (cw ? 1 : -1) };
+    });
+    const R = 100, STEP = 16;
+    await page.mouse.move(aim.x + 40, aim.y);
+    await page.mouse.down();
+    await page.mouse.move(aim.x + R, aim.y);
+    for (let k = 1; k <= STEP * 5; k++) {
+      const a = aim.sign * (k / STEP) * Math.PI * 2;
+      await page.mouse.move(aim.x + R * Math.cos(a), aim.y + R * Math.sin(a));
+      if (k % STEP === 0 && await page.evaluate(() => window.__ctx.screw.bolt.progress <= -4 * Math.PI + 0.01)) break;
+    }
+    await page.mouse.up();
+    await page.waitForTimeout(tmo(900));
+    return {
+      thread: aim.thread,
+      end: await page.evaluate(() => window.__ctx.screw.bolt.progress),
+      count: await page.evaluate(() => window.__ctx.state.wrongThread),
+    };
+  })();
+  check(`${label}-倒转`, '右牙倒转两圈照样顶住回弹，但不记成左脚踏拧反',
+    loosen.thread === 'right' && Math.abs(loosen.end - (Math.PI - 2 * TAU)) < 0.2 && loosen.count === 0,
+    `${loosen.thread} 牙 · 回弹到 ${(-loosen.end / TAU).toFixed(2)} 圈 · wrongThread=${loosen.count}`);
 
   // ── 从头到尾装完整台车 ──
   // 按用户那条路走：一步步往下按，每一步把剩下的活按「一下一件」演完，装完再对账。

@@ -22,6 +22,7 @@ const K = {
   PERP_RATIO: 2.2,   // 且要压过轴向累计这么多倍，才判成方向错了
   RELAX: 0.2,        // 连败三次后吸附放宽到 gap 的这个比例
   BACK: -0.2,        // 允许往预备位后面再拖这么多（比例）—— 到头就顶死不像零件，像墙
+  LEAN: 0.08,        // 往侧向顶得再狠也只歪 gap 的这个比例 —— 「给」到此为止
 };
 
 /** 到位回弹的绝对距离（米）。按比例给的话行程长的件回弹更大，那是弹簧不是插到底 */
@@ -234,12 +235,21 @@ export class Slide {
     rig.u = 1;   // 逻辑上仍算「在装配位」，退出时 park(id, 1) 一次归位
   }
 
-  /** u = 1 是装到位，u = 0 是预备位（沿 -dir 退 gap）。整组节点同时写 */
-  #setU(rig, u) {
+  /**
+   * u = 1 是装到位，u = 0 是预备位（沿 -dir 退 gap）。整组节点同时写。
+   *
+   * lean 是垂直于装配轴的那一点「给」（世界方向），只有手正顶着侧面时才传 ——
+   * park / seat / cancel 都不传，于是件一回到这几条路上就自动摆正。
+   */
+  #setU(rig, u, lean = null) {
     if (!rig) return;
     rig.u = u;
     const travel = (u - 1) * rig.gap;
-    for (const n of rig.nodes) n.obj.position.copy(n.home).addScaledVector(n.step, travel);
+    const v = lean && new THREE.Vector3();
+    for (const n of rig.nodes) {
+      n.obj.position.copy(n.home).addScaledVector(n.step, travel);
+      if (lean) n.obj.position.add(v.copy(lean).applyMatrix3(n.basis));
+    }
   }
 
   /** 这一件的从动件（连成一体、跟着它动的那几件） */
@@ -250,10 +260,10 @@ export class Slide {
     return out;
   }
 
-  /** 交互路径一律走这里：驱动一件 = 连它的从动件一起写同一个 u */
-  #drive(rig, u) {
-    this.#setU(rig, u);
-    for (const f of this.#followersOf(rig.id)) this.#setU(f, u);
+  /** 交互路径一律走这里：驱动一件 = 连它的从动件一起写同一个 u 与同一点顶歪量 */
+  #drive(rig, u, lean = null) {
+    this.#setU(rig, u, lean);
+    for (const f of this.#followersOf(rig.id)) this.#setU(f, u, lean);
   }
 
   /**
@@ -416,7 +426,7 @@ export class Slide {
       grab: hit.point,
       u0: rig.u,
       along: 0, perp: 0,
-      moved: false, warned: false, near: false,
+      moved: false, warned: false, near: false, lean: null,
     };
     this.grabbed = true;
     this.ctx.stage.controls.enabled = false;
@@ -450,8 +460,20 @@ export class Slide {
       return;
     }
 
+    /*
+     * 顶住的那一点「给」：件贴着配合面被推歪一点点就到头，越推越不给。
+     * 少了它，「错误方向阻尼回弹」在最常见的那一种情形下什么也没发生 ——
+     * 件还停在预备位（u = 0），侧着推它纹丝不动，回弹又是从零弹到零，
+     * 剩下的只有一句话。手底下要先觉出「抵住了」，那句话才有落脚处。
+     */
+    const give = rig.gap * K.LEAN;
+    // 先扣掉手上的抖动量再算：不扣的话，正着推的一路件也跟着指针左右晃，
+    // 看着不像被导轨领着走，像松了
+    const push = Math.max(0, perp - rig.gap * K.MOVED);
+    a.lean = push > 0 ? delta.multiplyScalar((give * push) / (push + give) / perp) : null;
+
     const u = Math.max(K.BACK, Math.min(1, a.u0 + along / rig.gap));
-    this.#drive(rig, u);
+    this.#drive(rig, u, a.lean);
 
     const near = (1 - u) * rig.gap <= rig.snap;
     if (near !== a.near) {
@@ -481,8 +503,10 @@ export class Slide {
 
     // 每一帧都认一次 session：中途翻页把件放回了原位，滑回去那几帧不能再把它拖下来
     const u0 = rig.u;
-    await tween(0.42, (k) => { if (this.session === s) this.#drive(rig, u0 * (1 - k)); },
-      { ease: Ease.inOutQuad });
+    const lean = a.lean;
+    await tween(0.42, (k) => {
+      if (this.session === s) this.#drive(rig, u0 * (1 - k), lean?.clone().multiplyScalar(1 - k));
+    }, { ease: Ease.inOutQuad });
     if (this.session !== s) return;
     this.ctx.hud?.toast('再往前推一点');
     this.#fail();
@@ -495,9 +519,12 @@ export class Slide {
     const s = this.session;
     const rig = a.rig;
     const u0 = rig.u;
+    const lean = a.lean;
     this.ctx.sfx?.play('WRONG');
-    await tween(0.3, (k) => { if (this.session === s) this.#drive(rig, u0 * (1 - Ease.outQuad(k))); },
-      { ease: Ease.linear });
+    await tween(0.3, (k) => {
+      const e = 1 - Ease.outQuad(k);
+      if (this.session === s) this.#drive(rig, u0 * e, lean?.clone().multiplyScalar(e));
+    }, { ease: Ease.linear });
     if (this.session !== s) return;
     this.ctx.hud?.toast(s.wrongHint || `${rig.name}顺着箭头推进去`);
     this.#fail();
