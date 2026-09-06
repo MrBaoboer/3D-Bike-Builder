@@ -1,14 +1,11 @@
 name: 工程数据不对
-description: 规格、牙向、装配顺序、术语 —— 哪一条错了
+description: 规格、牙向、装配顺序、术语，哪一条错了
 labels: [数据订正]
 body:
   - type: markdown
     attributes:
       value: |
-        **这类 Issue 最欢迎。** 这份清单里每一个数都可能错，
-        而错了的后果是有人照着它把车装坏。
-
-        绝大多数数据在 `assets/bike.manifest.json` 里，
+        这类订正最欢迎。绝大多数数据在 `assets/bike.manifest.json` 里，
         少数写在 `src/steps/acts.js` 的说明卡文案中。
 
   - type: dropdown
@@ -55,8 +52,7 @@ body:
     attributes:
       label: 出处
       description: |
-        厂商说明书、官网规格页、行业标准、或者你自己的实测。
-        有链接最好；实测的话说一下怎么测的。
-        **没有出处的订正没法采纳** —— 换一个同样没出处的数字，帮不上任何人。
+        厂商说明书、官网规格页、行业标准，或者你自己的实测。有链接最好；实测的话说一下怎么测的。
+        没有出处的订正不采纳。
     validations:
       required: true
