@@ -2,21 +2,18 @@
 
 ## 攻击面
 
-**纯静态站点。** 没有后端、没有账号、没有数据库、没有服务端渲染。
-产物就是一份 HTML、两个 JS chunk、一份 CSS，加一个 12 MB 的模型文件。
+**纯静态站点。** 没有后端、没有账号、没有数据库、没有服务端渲染。产物是一份 HTML、两个 JS chunk、一份 CSS，加一个 12 MB 的模型文件。
 
-**不向任何外部域名发请求。** 没有 CDN、没有外链字体、没有统计、没有第三方脚本。
-生产产物注入一条 CSP（见 `vite.config.js`）：
+**不向任何外部域名发请求。** 没有 CDN、没有外链字体、没有统计、没有第三方脚本。生产产物注入一条 CSP（`vite.config.js`）：
 
 ```
 default-src 'self'; connect-src 'self' blob:; img-src 'self' data: blob:;
 object-src 'none'; base-uri 'self'; form-action 'none'
 ```
 
-`blob:` 是给 GLTFLoader 的 —— 它把 GLB 里的贴图切成 blob 再取回来。
+`blob:` 是给 GLTFLoader 的，它把 GLB 里的贴图切成 blob 再取回来；`data:` 是给首页那枚 SVG favicon 的。
 
-**没有 cookie，不做追踪。** localStorage 里只有三个偏好：深浅主题、声音开关、
-是否看过操作说明。装到哪一步一概不存 —— 刷新即从头开始。
+**没有 cookie，不做追踪。** localStorage 里只有三个偏好：深浅主题、声音开关、是否看过操作说明。装到哪一步一概不存。
 
 **音效是实时合成的**，不加载任何音频文件。
 
@@ -25,24 +22,22 @@ object-src 'none'; base-uri 'self'; form-action 'none'
 - DOM 注入：界面层用 `innerHTML` 铺模板，如果哪一处把外部可控的字符串拼了进去
 - CSP 绕过，或者某次改动让产物开始向外部域名发请求
 - 构建链污染：依赖被投毒、`npm ci` 装到非预期的东西
-- 依赖里可被实际触发的漏洞（**能说明在本项目里怎么触发**的那种）
-- 非预期的数据外泄 —— 虽然这里本来就没有用户数据
+- 依赖里可被实际触发的漏洞，能说明在本项目里怎么触发的那种
+- 非预期的数据外泄
 
 ## 不算的
 
 - 浏览器不支持 WebGL 2 或 ES2022 导致打不开（兼容性问题，请开普通 Issue）
-- 依赖扫描器报出的、在本项目里根本走不到的那条代码路径
+- 依赖扫描器报出的、在本项目里根本走不到的代码路径
 - 托管平台（GitHub Pages / Vercel）自身的配置与策略
 - 社会工程
 
 ## 怎么报
 
-走 GitHub 的私密披露：仓库 **Security** 标签页 → **Report a vulnerability**。
-**不要开公开 Issue。**
+走 GitHub 的私密披露：仓库 **Security** 标签页 → **Report a vulnerability**。不要开公开 Issue。
 
 ## 响应
 
-一个人维护的项目，没有 SLA。收到后尽快确认，判定成立就修，修完在 Release Notes 里
-说明影响范围。愿意的话会在致谢里写上你的名字。
+一个人维护的项目，没有 SLA。收到后尽快确认，判定成立就修，修完在 Release Notes 里说明影响范围，愿意的话在致谢里写上你的名字。
 
 只支持 `main` 分支与线上部署的那一版，历史提交与各种 fork 不在范围内。
