@@ -133,7 +133,7 @@ function meshBoxes(ctx, { skipParts = false } = {}) {
  * `Box3.setFromObject()` 只重算自己那一格：清单节点几乎全是组节点，
  * park 挪的是组节点，子网格拿到的还是旧矩阵 —— 位移一点也量不到，
  * 「量整段行程」静默失效。取景跑在首帧渲染之前，没有别人替这里刷。
- * 详见 docs/DEVELOPMENT.md「量几何之前先自己刷矩阵」。
+ * 详见 docs/camera.md「量几何之前先自己刷矩阵」。
  */
 function nodeBoxes(ctx, name) {
   const root = ctx.bike.get(name);

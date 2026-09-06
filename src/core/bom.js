@@ -1,6 +1,6 @@
 /**
  * 装配清单 —— assets/bike.manifest.json 的运行时读法。清单是全片唯一事实来源，
- * 上层一律从这里取，不各自 import 一遍（见 docs/DEVELOPMENT.md「清单」）。
+ * 上层一律从这里取，不各自 import 一遍（见 docs/manifest.md）。
  *
  * 分层上破了「core 不碰 three」一条：只借 Vector3 这一个纯数学类型，不碰场景。
  * 清单 JSON 不在这里 import：裸导入 .json 是 Vite 的写法，Node 解析不了，

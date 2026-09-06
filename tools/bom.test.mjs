@@ -140,7 +140,7 @@ test('crossPairs 把中心对称的两颗配成一对', () => {
 
 /*
  * crossPairs 必须发 id：调用方（interact/screw.js 的 _mate）拿它与 id 字符串比，
- * 发成对象则恒不相等，对角判定静默失效。见 docs/DEVELOPMENT.md「容易写反的签名」。
+ * 发成对象则恒不相等，对角判定静默失效。见 docs/development.md「容易写反的签名」。
  */
 test('crossPairs 发出的是 id，不是紧固件对象', () => {
   const bom = new Bom(cross([[0, 1, 1], [0, -1, -1], [0, 1, -1], [0, -1, 1]]));

@@ -18,7 +18,7 @@ const DROP = ['Shadows'];
 /**
  * 上游静止姿态里整个前端绕转向轴向左打了 40.212°，须扶正 ——
  * 否则前轮不在中垂面上、前轴不是横向，装前轮那一步的方向整个歪掉。
- * 转向轴取把立节点的局部 +Z（头管角 65°）。扶正判据见 docs/DEVELOPMENT.md「模型」。
+ * 转向轴取把立节点的局部 +Z（头管角 65°）。扶正判据见 docs/manifest.md「模型」。
  */
 const STEER = {
   node: 'Lenker',                          // 转向总成的根：Lenker → Federung → RadVorn
@@ -188,7 +188,7 @@ export class Bike {
   /**
    * 某个子树的世界包围盒。量之前先刷祖先与整棵子树的矩阵 ——
    * `Box3.setFromObject()` 只刷自己那一格，而取景跑在首帧渲染之前，矩阵一旧，
-   * 量出来的是挪位之前的盒。见 docs/DEVELOPMENT.md「量几何之前先自己刷矩阵」。
+   * 量出来的是挪位之前的盒。见 docs/camera.md「量几何之前先自己刷矩阵」。
    */
   boundsOf(name) {
     const o = this.get(name);

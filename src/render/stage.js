@@ -1,7 +1,7 @@
 /**
  * 舞台：渲染器 / 相机 / 光照 / 轨道控制
  *
- * Y 轴向上（glTF 规范，不动 DEFAULT_UP），1 单位 = 1 米，标定见 docs/DEVELOPMENT.md。
+ * Y 轴向上（glTF 规范，不动 DEFAULT_UP），1 单位 = 1 米，标定见 docs/manifest.md。
  * 取景按声明现算：每一步给出必须完整看到的范围（`fit`），装不下时相机后退，
  * 界面占掉的边一并计入 —— 少了这条，窄画幅上主体裁边。
  */
@@ -79,7 +79,7 @@ export class Stage {
     renderer.toneMappingExposure = 1.0;
     /*
      * 不投影：自行车的影子是一大片辐条、链条交织的噪点，近景里抢视线。
-     * 连带的光照与取景调整见 docs/DEVELOPMENT.md「不投影」。
+     * 连带的光照与取景调整见 docs/camera.md「不投影」。
      */
     this.renderer = renderer;
 
@@ -280,7 +280,7 @@ export class Stage {
    * 隔 180° 的两步会让相机穿过整台车。方位角走最短的一边；距离等比推拉
    * （等差在长距离推近时前慢后猛）；大转角中段把距离外鼓一点避开车身。
    * 时长按这一趟的幅度现算。屏幕上看不出的位移（TINY）直接落位；
-   * 界面引起的重新取景走快档、不外扩。详见 docs/DEVELOPMENT.md「换步的运镜」。
+   * 界面引起的重新取景走快档、不外扩。详见 docs/camera.md「换步的运镜」。
    * @param {number} ease 步骤声明的时长系数
    * @param {{layout?:boolean}} [o] layout：界面变化引起的重新让位，不是换步
    */
