@@ -183,7 +183,7 @@ export class HUD {
 
   /**
    * 量出界面实际占掉的四条边，交给 stage.setSafeArea —— 三维据此让位。
-   * 判据一律用几何而不是元素身份，理由见 docs/DEVELOPMENT.md「界面遮住多少画面」。
+   * 判据一律用几何而不是元素身份，理由见 docs/camera.md「界面遮住多少画面」。
    */
   #syncSafe() {
     const vh = innerHeight;

@@ -116,7 +116,7 @@ async function main() {
   const guides = new Arrows(stage.scene);
   const bolts = new Bolts(stage.scene, BOM);
 
-  /** 全片共享上下文，键表见 docs/DEVELOPMENT.md */
+  /** 全片共享上下文，键表见 docs/development.md */
   const ctx = { stage, bike, bom: BOM, bolts, hud, sfx: SFX, fx, guides, state, tier };
   ctx.slide = new Slide(ctx);
   ctx.screw = new Screw(ctx);

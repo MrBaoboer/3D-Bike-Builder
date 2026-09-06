@@ -2,7 +2,7 @@
  * 线上对账：两处地址发的是不是同一份产物。判据是入口 JS 的内容哈希文件名
  *（assets/index-XXXX.js），两处一致才算同一份。只看返回 200 不够：落后一个
  * 版本的部署照样 200、标题也一样。两条发布链路各走各的，一条掉队不会有
- * 任何报错。见 docs/DEVELOPMENT.md「部署」。
+ * 任何报错。见 docs/deployment.md。
  *
  *   npm run live
  */

@@ -4,7 +4,7 @@
  * 只查「步骤可达」抓不住 enter() 一进去就抛错，四个交互原语都要真的走一遍。
  * 不能用 drawImage 直接读 WebGL 画布：没开 preserveDrawingBuffer 时缓冲合成后
  * 即清，读回来全黑。CI 比开发机慢一个量级，所有等待都要过 tmo()。
- * 另见 docs/DEVELOPMENT.md「冒烟走查」。
+ * 另见 docs/testing.md「冒烟走查」。
  *
  *   node tools/smoke.mjs [--shots] [--headed]
  */

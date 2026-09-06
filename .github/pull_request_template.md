@@ -20,4 +20,4 @@
 - [ ] `npm run check:code` 过了
 - [ ] 动了三维 / 步骤 / 版式的，本地 `npm run smoke` 也过了
 - [ ] 没有新增运行时依赖（新增请在上面说明理由）
-- [ ] 同意 [CONTRIBUTING.md](../CONTRIBUTING.md) 里的授权条款
+- [ ] 同意 [CONTRIBUTING.md](https://github.com/MrBaoboer/3D-Bike-Builder/blob/main/CONTRIBUTING.md) 里的授权条款
